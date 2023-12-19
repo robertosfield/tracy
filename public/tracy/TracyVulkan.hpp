@@ -23,6 +23,7 @@
 #define TracyVkZoneCS(c,x,y,z,w)
 #define TracyVkZoneTransientS(c,x,y,z,w,a)
 
+
 namespace tracy
 {
 class VkCtxScope {};
@@ -90,13 +91,13 @@ class VkCtx
 {
     friend class VkCtxScope;
 
-    enum { QueryCount = 64 * 1024 };
-
 public:
-#if defined TRACY_VK_USE_SYMBOL_TABLE
-    VkCtx( VkInstance instance, VkPhysicalDevice physdev, VkDevice device, VkQueue queue, VkCommandBuffer cmdbuf, PFN_vkGetInstanceProcAddr instanceProcAddr, PFN_vkGetDeviceProcAddr deviceProcAddr, bool calibrated )
+   enum { DefaultQueryCount = 64 * 1024 };
+
+   #if defined TRACY_VK_USE_SYMBOL_TABLE
+    VkCtx( VkInstance instance, VkPhysicalDevice physdev, VkDevice device, VkQueue queue, VkCommandBuffer cmdbuf, PFN_vkGetInstanceProcAddr instanceProcAddr, PFN_vkGetDeviceProcAddr deviceProcAddr, bool calibrated, unsigned int queryCount = DefaultQueryCount)
 #else
-    VkCtx( VkPhysicalDevice physdev, VkDevice device, VkQueue queue, VkCommandBuffer cmdbuf, PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT vkGetPhysicalDeviceCalibrateableTimeDomainsEXT, PFN_vkGetCalibratedTimestampsEXT vkGetCalibratedTimestampsEXT)
+    VkCtx( VkPhysicalDevice physdev, VkDevice device, VkQueue queue, VkCommandBuffer cmdbuf, PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT vkGetPhysicalDeviceCalibrateableTimeDomainsEXT, PFN_vkGetCalibratedTimestampsEXT vkGetCalibratedTimestampsEXT, unsigned int queryCount = DefaultQueryCount)
 #endif
         : m_device( device )
         , m_timeDomain( VK_TIME_DOMAIN_DEVICE_EXT )
@@ -104,7 +105,7 @@ public:
         , m_head( 0 )
         , m_tail( 0 )
         , m_oldCnt( 0 )
-        , m_queryCount( QueryCount )
+        , m_queryCount( queryCount )
 #if !defined TRACY_VK_USE_SYMBOL_TABLE
         , m_vkGetCalibratedTimestampsEXT( vkGetCalibratedTimestampsEXT )
 #endif
@@ -179,9 +180,9 @@ public:
      * the physical device to have another time domain apart from DEVICE to be calibrateable.
      */
 #if defined TRACY_VK_USE_SYMBOL_TABLE
-    VkCtx( VkInstance instance, VkPhysicalDevice physdev, VkDevice device, PFN_vkGetInstanceProcAddr instanceProcAddr, PFN_vkGetDeviceProcAddr deviceProcAddr )
+    VkCtx( VkInstance instance, VkPhysicalDevice physdev, VkDevice device, PFN_vkGetInstanceProcAddr instanceProcAddr, PFN_vkGetDeviceProcAddr deviceProcAddr, unsigned int queryCount = DefaultQueryCount )
 #else
-    VkCtx( VkPhysicalDevice physdev, VkDevice device, PFN_vkResetQueryPoolEXT vkResetQueryPool, PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT vkGetPhysicalDeviceCalibrateableTimeDomainsEXT, PFN_vkGetCalibratedTimestampsEXT vkGetCalibratedTimestampsEXT )
+    VkCtx( VkPhysicalDevice physdev, VkDevice device, PFN_vkResetQueryPoolEXT vkResetQueryPool, PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT vkGetPhysicalDeviceCalibrateableTimeDomainsEXT, PFN_vkGetCalibratedTimestampsEXT vkGetCalibratedTimestampsEXT, unsigned int queryCount = DefaultQueryCount )
 #endif
         : m_device( device )
         , m_timeDomain( VK_TIME_DOMAIN_DEVICE_EXT )
@@ -189,7 +190,7 @@ public:
         , m_head( 0 )
         , m_tail( 0 )
         , m_oldCnt( 0 )
-        , m_queryCount( QueryCount )
+        , m_queryCount( queryCount )
 #if !defined TRACY_VK_USE_SYMBOL_TABLE
         , m_vkGetCalibratedTimestampsEXT( vkGetCalibratedTimestampsEXT )
 #endif
@@ -263,7 +264,7 @@ public:
         }
 #endif
         assert( head > m_tail );
-        
+
         const unsigned int wrappedTail = (unsigned int)( m_tail % m_queryCount );
 
         unsigned int cnt;
@@ -621,32 +622,32 @@ private:
 };
 
 #if defined TRACY_VK_USE_SYMBOL_TABLE
-static inline VkCtx* CreateVkContext( VkInstance instance, VkPhysicalDevice physdev, VkDevice device, VkQueue queue, VkCommandBuffer cmdbuf, PFN_vkGetInstanceProcAddr instanceProcAddr, PFN_vkGetDeviceProcAddr getDeviceProcAddr, bool calibrated = false )
+static inline VkCtx* CreateVkContext( VkInstance instance, VkPhysicalDevice physdev, VkDevice device, VkQueue queue, VkCommandBuffer cmdbuf, PFN_vkGetInstanceProcAddr instanceProcAddr, PFN_vkGetDeviceProcAddr getDeviceProcAddr, bool calibrated = false, unsigned int queryCount = VkCtx::DefaultQueryCount )
 #else
-static inline VkCtx* CreateVkContext( VkPhysicalDevice physdev, VkDevice device, VkQueue queue, VkCommandBuffer cmdbuf, PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT gpdctd, PFN_vkGetCalibratedTimestampsEXT gct )
+static inline VkCtx* CreateVkContext( VkPhysicalDevice physdev, VkDevice device, VkQueue queue, VkCommandBuffer cmdbuf, PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT gpdctd, PFN_vkGetCalibratedTimestampsEXT gct, unsigned int queryCount = VkCtx::DefaultQueryCount )
 #endif
 {
     auto ctx = (VkCtx*)tracy_malloc( sizeof( VkCtx ) );
 #if defined TRACY_VK_USE_SYMBOL_TABLE
-    new(ctx) VkCtx( instance, physdev, device, queue, cmdbuf, instanceProcAddr, getDeviceProcAddr, calibrated );
+    new(ctx) VkCtx( instance, physdev, device, queue, cmdbuf, instanceProcAddr, getDeviceProcAddr, calibrated, queryCount );
 #else
-    new(ctx) VkCtx( physdev, device, queue, cmdbuf, gpdctd, gct );
+    new(ctx) VkCtx( physdev, device, queue, cmdbuf, gpdctd, gct, queryCount );
 #endif
     return ctx;
 }
 
 #if defined VK_EXT_host_query_reset
 #if defined TRACY_VK_USE_SYMBOL_TABLE
-static inline VkCtx* CreateVkContext( VkInstance instance, VkPhysicalDevice physdev, VkDevice device, PFN_vkGetInstanceProcAddr instanceProcAddr, PFN_vkGetDeviceProcAddr getDeviceProcAddr )
+static inline VkCtx* CreateVkContext( VkInstance instance, VkPhysicalDevice physdev, VkDevice device, PFN_vkGetInstanceProcAddr instanceProcAddr, PFN_vkGetDeviceProcAddr getDeviceProcAddr, unsigned int queryCount = VkCtx::DefaultQueryCount )
 #else
-static inline VkCtx* CreateVkContext( VkPhysicalDevice physdev, VkDevice device, PFN_vkResetQueryPoolEXT qpreset, PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT gpdctd, PFN_vkGetCalibratedTimestampsEXT gct )
+static inline VkCtx* CreateVkContext( VkPhysicalDevice physdev, VkDevice device, PFN_vkResetQueryPoolEXT qpreset, PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT gpdctd, PFN_vkGetCalibratedTimestampsEXT gct, unsigned int queryCount = VkCtx::DefaultQueryCount )
 #endif
 {
     auto ctx = (VkCtx*)tracy_malloc( sizeof( VkCtx ) );
 #if defined TRACY_VK_USE_SYMBOL_TABLE
-    new(ctx) VkCtx( instance, physdev, device, instanceProcAddr, getDeviceProcAddr );
+    new(ctx) VkCtx( instance, physdev, device, instanceProcAddr, getDeviceProcAddr, queryCount );
 #else
-    new(ctx) VkCtx( physdev, device, qpreset, gpdctd, gct );
+    new(ctx) VkCtx( physdev, device, qpreset, gpdctd, gct, queryCount );
 #endif
     return ctx;
 }
