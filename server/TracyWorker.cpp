@@ -5885,7 +5885,11 @@ void Worker::ProcessGpuTime( const QueueGpuTime& ev )
     }
 
     auto zone = ctx->query[ev.queryId];
+#if 0
+    if (!zone) return;
+#else
     assert( zone );
+#endif
     ctx->query[ev.queryId] = nullptr;
 
     if( zone->GpuStart() < 0 )
